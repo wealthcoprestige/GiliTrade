@@ -107,11 +107,11 @@ class ApiService {
 
 const baseURL =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "http://backend.dreamabroad.online/api/v2/";
+  "https://backend.dreamabroad.online/api/v2/";
 
 const loginBaseURL =
   process.env.NEXT_PUBLIC_LOGIN_BASE_URL ||
-  "http://backend.dreamabroad.online/accounts/";
+  "https://backend.dreamabroad.online/accounts/";
 
 export const api = new ApiService(baseURL);
 export const authApi = new ApiService(loginBaseURL);
