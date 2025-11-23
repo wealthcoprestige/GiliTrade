@@ -523,7 +523,7 @@ function OpportunityDetailPage() {
                     alt={opportunity.title}
                     width={800}
                     height={384}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -554,7 +554,6 @@ function OpportunityDetailPage() {
                           width={200}
                           height={80}
                           className="w-full h-full object-cover"
-                          style={{ width: "auto", height: "auto" }}
                         />
                         {selectedImage === index && (
                           <div className="absolute inset-0 bg-blue-600 bg-opacity-20"></div>
