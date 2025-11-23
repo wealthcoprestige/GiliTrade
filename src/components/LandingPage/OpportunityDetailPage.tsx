@@ -2,6 +2,7 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AxiosError, AxiosResponse } from "axios";
+import imageCompression from "browser-image-compression";
 import Image from "next/image";
 import Header from "./Header";
 import companyLogo from "../../../public/logo.png";
@@ -295,6 +296,59 @@ function OpportunityDetailPage() {
     return true;
   };
 
+  const truncateFilename = (file: File, maxLength: number = 90): File => {
+    if (file.name.length <= maxLength) {
+      return file;
+    }
+
+    const extension = file.name.split(".").pop() || "";
+    const baseName = file.name.substring(
+      0,
+      file.name.length - extension.length - 1
+    );
+    const truncatedBaseName = baseName.substring(
+      0,
+      maxLength - extension.length - 1
+    );
+
+    const newName = `${truncatedBaseName}.${extension}`;
+
+    // Create a new File object with the truncated name
+    return new File([file], newName, { type: file.type });
+  };
+
+  const compressFile = async (file: File): Promise<File> => {
+    // We only compress image files. Other files like PDFs are returned as is.
+    if (!file.type.startsWith("image/")) {
+      return file;
+    }
+
+    console.log(
+      `Original image size: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+    );
+
+    const options = {
+      maxSizeMB: 1, // Max file size in MB
+      maxWidthOrHeight: 1920, // Max width or height
+      useWebWorker: true,
+      // Preserve original file name
+      initialQuality: 0.7,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      console.log(
+        `Compressed image size: ${(compressedFile.size / 1024 / 1024).toFixed(
+          2
+        )} MB`
+      );
+      return new File([compressedFile], file.name, { type: file.type });
+    } catch (error) {
+      console.error("Error during image compression:", error);
+      return file; // Return original file if compression fails
+    }
+  };
+
   const handleSubmitApplication = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitError("");
@@ -345,10 +399,12 @@ function OpportunityDetailPage() {
       } else {
         const unauthSubmitData = new FormData();
 
-        for (const key in formData) {
+        for (const key of Object.keys(formData)) {
           const value = formData[key as keyof FormData];
           if (value instanceof File) {
-            unauthSubmitData.append(key, value);
+            const compressedFile = await compressFile(value);
+            const truncatedFile = truncateFilename(compressedFile);
+            unauthSubmitData.append(key, truncatedFile);
           } else if (value !== null) {
             unauthSubmitData.append(key, value as string);
           }
