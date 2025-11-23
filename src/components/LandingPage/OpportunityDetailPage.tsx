@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { AxiosError, AxiosResponse } from "axios";
 import Image from "next/image";
 import Header from "./Header";
@@ -302,39 +302,6 @@ function OpportunityDetailPage() {
     return true;
   };
 
-  const handleAuthenticatedApply = async () => {
-    if (!campaignId) {
-      setSubmitError("No campaign selected");
-      return;
-    }
-
-    setSubmitting(true);
-    setSubmitError("");
-
-    try {
-      const response: AxiosResponse = await api.post(
-        `applicant/application/auth/${campaignId}`
-      );
-
-      if (response.status === 200 || response.status === 201) {
-        setSubmitSuccess(true);
-        setTimeout(() => router.push("/dashboard"), 2000);
-      }
-    } catch (error) {
-      console.error("Error submitting application:", error);
-      if (error instanceof AxiosError && error.response) {
-        const errorData = error.response.data;
-        setSubmitError(
-          errorData.message || "Failed to submit application. Please try again."
-        );
-      } else {
-        setSubmitError("An unexpected error occurred. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleSubmitApplication = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitError("");
@@ -389,19 +356,25 @@ function OpportunityDetailPage() {
           const value = formData[key as keyof FormData];
           if (value instanceof File) {
             unauthSubmitData.append(key, value);
-          } else if (value !== null && value !== "") {
+          } else if (value !== null) {
             unauthSubmitData.append(key, value as string);
           }
         }
 
-        const response: AxiosResponse<ApiResponse> = await api.postWithResponse(
+        // Use a clean axios instance without interceptors for unauthenticated form submission
+        // to avoid issues with 401 redirects on mobile.
+        const unauthApi = require("axios").create({
+          baseURL:
+            process.env.NEXT_PUBLIC_API_BASE_URL ||
+            "https://backend.dreamabroad.online/api/v2/",
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const response: AxiosResponse<ApiResponse> = await unauthApi.post(
           `create/applicant/application/unauthenticated/${campaignId}`,
-          unauthSubmitData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-            },
-          }
+          unauthSubmitData
         );
 
         if (response.status === 201) {
@@ -504,8 +477,7 @@ function OpportunityDetailPage() {
                     alt={opportunity.title}
                     width={800}
                     height={384}
-                    className="w-full h-full object-cover"
-                    style={{ width: "auto", height: "auto" }}
+                    className="w-full h-full object-contain"
                   />
                 ) : (
                   <div className="w-full h-full bg-gray-200 flex items-center justify-center">
@@ -643,11 +615,7 @@ function OpportunityDetailPage() {
                 </div>
 
                 <button
-                  onClick={
-                    isAuthenticated
-                      ? handleAuthenticatedApply
-                      : () => setShowApplicationForm(true)
-                  }
+                  onClick={() => setShowApplicationForm(true)}
                   disabled={submitting}
                   className="w-full bg-gradient-to-r from-blue-800 to-blue-600 text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
