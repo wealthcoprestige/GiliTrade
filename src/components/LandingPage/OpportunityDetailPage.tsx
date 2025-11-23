@@ -416,6 +416,7 @@ function OpportunityDetailPage() {
           baseURL:
             process.env.NEXT_PUBLIC_API_BASE_URL ||
             "https://backend.dreamabroad.online/api/v2/",
+          timeout: 60000, // 60-second timeout for file uploads
         });
 
         const response: AxiosResponse<ApiResponse> = await unauthApi.post(
