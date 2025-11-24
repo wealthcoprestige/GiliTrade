@@ -63,6 +63,13 @@ function HeroPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const router = useRouter();
 
+  const handleScrollToOpportunities = () => {
+    const opportunitiesSection = document.getElementById("opportunities");
+    if (opportunitiesSection) {
+      opportunitiesSection.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
   const extractDataFromResponse = <T,>(response: unknown): T[] => {
     if (response && typeof response === "object" && "data" in response) {
       const data = response.data as { results?: T[] };
@@ -387,7 +394,7 @@ function HeroPage() {
               {opportunity.days_remaining < 7 && (
                 <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold animate-pulse">
                   <i className="fas fa-clock mr-1"></i>
-                  {opportunity.days_remaining}d left
+                  {opportunity.days_remaining} left
                 </div>
               )}
             </div>
@@ -568,10 +575,16 @@ function HeroPage() {
                     {slide.description}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <button className="bg-white text-blue-800 px-8 py-4 rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 text-lg">
+                    <button
+                      onClick={handleScrollToOpportunities}
+                      className="bg-white text-blue-800 px-8 py-4 rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 text-lg"
+                    >
                       {slide.primaryBtn}
                     </button>
-                    <button className="border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-800 transition-all duration-300 text-lg">
+                    <button
+                      onClick={handleScrollToOpportunities}
+                      className="border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-800 transition-all duration-300 text-lg"
+                    >
                       {slide.secondaryBtn}
                     </button>
                   </div>
@@ -682,7 +695,10 @@ function HeroPage() {
       )}
 
       {/* Featured Opportunities Section */}
-      <section className="py-20 bg-gradient-to-br from-gray-50 to-blue-50">
+      <section
+        id="opportunities"
+        className="py-20 bg-gradient-to-br from-gray-50 to-blue-50"
+      >
         <div className="container mx-auto px-4">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-16">
             <div className="flex-1 mb-8 lg:mb-0">
