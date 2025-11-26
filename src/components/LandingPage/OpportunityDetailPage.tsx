@@ -909,7 +909,7 @@ function OpportunityDetailPage() {
                 <button
                   onClick={() => setShowApplicationForm(true)}
                   disabled={submitting || compressing}
-                  className="w-full bg-gradient-to-r from-blue-800 to-blue-600 text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-blue-700 lg:bg-gradient-to-r from-blue-800 to-blue-600 text-white py-4 rounded-xl font-bold text-lg lg:font-semibold lg:text-base shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting || compressing ? (
                     <div className="flex items-center justify-center">
