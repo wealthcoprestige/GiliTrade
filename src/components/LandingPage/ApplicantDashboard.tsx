@@ -116,7 +116,7 @@ export default function Dashboard() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [investAmount, setInvestAmount] = useState("");
-  const [selectedCrypto, setSelectedCrypto] = useState("USDT");
+  const [selectedCrypto, setSelectedCrypto] = useState("BTC");
   const [selectedInvestCoin, setSelectedInvestCoin] = useState(null);
   const [copied, setCopied] = useState(false);
   const [depositInstructions, setDepositInstructions] = useState(null);
@@ -126,6 +126,8 @@ export default function Dashboard() {
   const [investLoading, setInvestLoading] = useState(false);
   const [investError, setInvestError] = useState("");
   const [miningCoins, setMiningCoins] = useState([]);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [processingInvestId, setProcessingInvestId] = useState(null);
   const [customerData, setCustomerData] = useState(null);
@@ -134,6 +136,7 @@ export default function Dashboard() {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [accountBalance, setAccountBalance] = useState(0);
+  const [userInteracted, setUserInteracted] = useState(false);
 
   const cryptoWallets = {
     USDT: {
@@ -157,6 +160,21 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    const nextView = sessionStorage.getItem("nextView");
+    if (nextView) {
+      if (nextView === "deposits") {
+        setShowDeposit(true);
+        setShowWithdraw(false);
+        setShowInvest(false);
+      }
+      // You can add more views here later, like 'withdrawals'
+
+      // Clear the item so it doesn't trigger on subsequent reloads
+      sessionStorage.removeItem("nextView");
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchCustomerData = async () => {
       try {
         const token = localStorage.getItem("access_token");
@@ -167,7 +185,7 @@ export default function Dashboard() {
 
         const response = await tradeApi.get("customer/account/");
         console.log("Customer API Response:", response); // Debug log
-        setCustomerData(response);
+        setCustomerData(response); // Set the response directly to state
 
         if (response?.customer?.account_balance) {
           const balance = parseFloat(response.customer.account_balance);
@@ -214,6 +232,7 @@ export default function Dashboard() {
               status: dep.status === "success" ? "completed" : dep.status,
               date: new Date(dep.created_at).toISOString().split("T")[0],
               txHash: dep.transaction_id,
+              address_wallet: dep.address_wallet, // Add wallet address to state
               network: "TRC20",
               createdAt: dep.created_at,
             }))
@@ -237,6 +256,8 @@ export default function Dashboard() {
         }
       } catch (error) {
         console.error("Failed to fetch customer data:", error);
+        // If fetching data fails (e.g. invalid token), redirect to login
+        router.push("/accounts/login");
       } finally {
         setLoadingCustomerData(false);
       }
@@ -376,7 +397,7 @@ export default function Dashboard() {
   function playSound() {
     try {
       const audio = new Audio(
-        "https://cdn.jsdelivr.net/gh/kushagra-g/pristine-audio@master/dist/sounds/positive.mp3"
+        "https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3"
       );
       audio.play().catch((e) => console.error("Error playing sound:", e));
     } catch (e) {}
@@ -391,14 +412,14 @@ export default function Dashboard() {
         price: (20000 + Math.random() * 3000).toFixed(2),
       };
       setNotifications((prev) => [sig, ...prev].slice(0, 5));
-      playSound();
+      if (userInteracted) playSound();
       setTimeout(() => {
         setNotifications((prev) => prev.filter((n) => n.id !== sig.id));
       }, 6000);
     }, 7000);
 
     return () => clearInterval(interval);
-  }, [selectedPair]);
+  }, [selectedPair, userInteracted]);
 
   function submitTrade(e) {
     e.preventDefault();
@@ -443,31 +464,50 @@ export default function Dashboard() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+  const showDepositInstructions = (deposit) => {
+    setDepositInstructions({
+      currency: deposit.currency,
+      amount: deposit.amount,
+      address: customerData?.prestige_wealth_address?.wallet_address, // Use the address from the specific deposit
+      network: deposit.network,
+    });
+    setShowDepositForm(false);
+  };
 
-  function submitDeposit(e) {
+  async function submitDeposit(e) {
     e.preventDefault();
     if (!depositAmount || parseFloat(depositAmount) <= 0) return;
 
-    const newDeposit = {
-      id: Date.now(),
-      amount: parseFloat(depositAmount),
-      currency: selectedCrypto,
-      status: "pending",
-      date: new Date().toISOString().split("T")[0],
-      txHash: `0x${Math.random().toString(16).slice(2)}...${Math.random()
-        .toString(16)
-        .slice(2)}`,
-    };
+    setDepositLoading(true);
+    setDepositError("");
 
-    setDeposits((prev) => [newDeposit, ...prev]);
-    setDepositInstructions({
-      currency: selectedCrypto,
-      amount: parseFloat(depositAmount),
-      address: cryptoWallets[selectedCrypto].address,
-      network: cryptoWallets[selectedCrypto].network,
-    });
-    setShowDepositForm(false);
-    setDepositAmount("");
+    try {
+      const depositData = {
+        amount: depositAmount,
+      };
+
+      const response = await tradeApi.post("deposit/", depositData);
+
+      if (response) {
+        // Assuming the response contains the deposit details including the address
+        setDepositInstructions({
+          currency: selectedCrypto, // Currently hardcoded to BTC
+          amount: parseFloat(response.amount),
+          address: customerData?.prestige_wealth_address?.wallet_address,
+          network: cryptoWallets[selectedCrypto].network, // Assuming network is static for now
+        });
+        setShowDepositForm(false);
+        setDepositAmount("");
+        // Optionally, refresh customer data to show the pending deposit
+        fetchCustomerData();
+      }
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "An unexpected error occurred.";
+      setDepositError(errorMessage);
+    } finally {
+      setDepositLoading(false);
+    }
   }
 
   function submitWithdraw(e) {
@@ -771,7 +811,10 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50 text-gray-900 overflow-hidden relative">
+    <div
+      className="flex h-screen bg-gradient-to-br from-gray-50 to-blue-50 text-gray-900 overflow-hidden relative"
+      onClick={() => !userInteracted && setUserInteracted(true)}
+    >
       {loadingCustomerData && (
         <div className="absolute inset-0 bg-white/70 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="text-center">
@@ -1666,10 +1709,9 @@ export default function Dashboard() {
                             <div className="text-center">
                               <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-gray-200">
                                 <img
-                                  src={
-                                    cryptoWallets[depositInstructions.currency]
-                                      .qrCode
-                                  }
+                                  src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${
+                                    depositInstructions.address || ""
+                                  }`}
                                   alt="QR Code"
                                   className="w-full h-full"
                                 />
@@ -1727,7 +1769,10 @@ export default function Dashboard() {
                               New Deposit
                             </button>
                             <button
-                              onClick={() => setDepositInstructions(null)}
+                              onClick={() => {
+                                sessionStorage.setItem("nextView", "deposits");
+                                window.location.reload();
+                              }}
                               className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-sky-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200"
                             >
                               View Deposit History
@@ -1749,13 +1794,21 @@ export default function Dashboard() {
                         </p>
                       </div>
 
+                      {depositError && (
+                        <div className="p-4 mb-4 bg-red-50 border border-red-200 rounded-xl text-center">
+                          <p className="text-sm text-red-700 font-medium">
+                            {depositError}
+                          </p>
+                        </div>
+                      )}
+
                       <form onSubmit={submitDeposit} className="space-y-6">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Select Cryptocurrency
                           </label>
-                          <div className="grid grid-cols-3 gap-3">
-                            {["USDT", "BTC", "ETH"].map((crypto) => (
+                          <div className="grid grid-cols-1 gap-3">
+                            {["BTC"].map((crypto) => (
                               <button
                                 type="button"
                                 key={crypto}
@@ -1844,7 +1897,14 @@ export default function Dashboard() {
                             }
                             className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-400 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                           >
-                            Continue to Payment
+                            {depositLoading ? (
+                              <div className="flex items-center justify-center">
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                <span>Processing...</span>
+                              </div>
+                            ) : (
+                              "Continue to Payment"
+                            )}
                           </button>
                         </div>
                       </form>
@@ -1881,7 +1941,13 @@ export default function Dashboard() {
                               Date
                             </th>
                             <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Action
+                            </th>
+                            <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Transaction
+                            </th>
+                            <th className="py-3 px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Wallet Address
                             </th>
                           </tr>
                         </thead>
@@ -1931,6 +1997,20 @@ export default function Dashboard() {
                                 {deposit.date}
                               </td>
                               <td className="py-4 px-6">
+                                <button
+                                  onClick={() =>
+                                    showDepositInstructions(deposit)
+                                  }
+                                  className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-200 transition-colors"
+                                >
+                                  {deposit.status !== "completed" ? (
+                                    "View Instructions"
+                                  ) : (
+                                    <span className="text-sm">Completed</span>
+                                  )}
+                                </button>
+                              </td>
+                              <td className="py-4 px-6">
                                 <div className="flex items-center space-x-2">
                                   <code className="text-sm text-gray-500 font-mono truncate max-w-[120px]">
                                     {deposit.txHash}
@@ -1940,6 +2020,26 @@ export default function Dashboard() {
                                       copyToClipboard(deposit.txHash)
                                     }
                                     className="p-1 hover:bg-gray-100 rounded"
+                                  >
+                                    <Copy className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-4 px-6">
+                                <div className="flex items-center space-x-2">
+                                  <code className="text-sm text-gray-500 font-mono truncate max-w-[120px]">
+                                    {customerData?.prestige_wealth_address
+                                      ?.wallet_address || "N/A"}
+                                  </code>
+                                  <button
+                                    onClick={() =>
+                                      copyToClipboard(
+                                        customerData?.prestige_wealth_address
+                                          ?.wallet_address
+                                      )
+                                    }
+                                    className="p-1 hover:bg-gray-100 rounded"
+                                    title="Copy Address"
                                   >
                                     <Copy className="w-4 h-4 text-gray-400" />
                                   </button>
