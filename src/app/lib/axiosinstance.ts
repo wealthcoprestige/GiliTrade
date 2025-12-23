@@ -124,11 +124,11 @@ class ApiService {
 // This means the base URL should be: http://127.0.0.1:7000/
 
 // For auth endpoints
-const authBaseURL = process.env.NEXT_PUBLIC_AUTH_BASE_URL || "http://127.0.0.1:8000/api/v1/accounts/";
+const authBaseURL = process.env.NEXT_PUBLIC_AUTH_BASE_URL || "https://gilitrade.pythonanywhere.com/api/v1/accounts/";
 // For other API endpoints
-const apiBaseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v1/";
+const apiBaseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://gilitrade.pythonanywhere.com/api/v1/";
 // For trade API endpoints
-const tradeApiBaseURL = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL || "http://127.0.0.1:8000/api/v1/trade/";
+const tradeApiBaseURL = process.env.NEXT_PUBLIC_TRADE_API_BASE_URL || "https://gilitrade.pythonanywhere.com/api/v1/trade/";
 
 // Create instances
 export const authApi = new ApiService(authBaseURL); // For auth endpoints (starting from root)
