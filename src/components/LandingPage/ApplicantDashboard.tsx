@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Menu,
   LogOut,
@@ -13,12 +13,10 @@ import {
   TrendingUp,
   TrendingDown,
   Home,
-  CreditCard,
   DollarSign,
   Clock,
   Shield,
   Settings,
-  Zap,
   Copy,
   Check,
   ExternalLink,
@@ -28,8 +26,6 @@ import {
   Coins,
   Hash,
   Layers,
-  Bitcoin,
-  Circle,
   Sparkles,
   Download,
   User,
@@ -97,18 +93,167 @@ const BitcoinIcon = () => (
   </svg>
 );
 
+interface Customer {
+  id: string;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone_number: string | null;
+  photo: string | null;
+  account_balance: string;
+  date_joined: string;
+  last_login: string | null;
+}
+
+interface InvestmentPlan {
+  name: string;
+  abbr: string;
+  daily_earning: number;
+  roi: number;
+  non_of_days: number;
+  hash_rate: number;
+}
+
+interface InvestmentApiResponse {
+  id: string;
+  name: string;
+  abbr: string;
+  daily_earning: string;
+  roi: string;
+  non_of_days: number;
+  amount: string;
+  hash_rate: string;
+  profit_return: string;
+}
+
+interface CustomerInvestment {
+  id: string;
+  amount: string;
+  earnings: string | null;
+  is_active: boolean;
+  created_at: string;
+  investment: InvestmentPlan;
+}
+
+interface ActiveInvestment extends CustomerInvestment {
+  startDate: Date;
+  daysActive: number;
+}
+
+interface Transaction {
+  id: string;
+  amount: string;
+  status: string;
+  created_at: string;
+  transaction_id: string;
+  address_wallet: string | null;
+}
+
+interface Deposit extends Transaction {
+  currency: string;
+  date: string;
+  txHash: string;
+  network: string;
+  createdAt: string;
+}
+
+interface Withdrawal extends Transaction {
+  currency: string;
+  date: string;
+  address: string;
+  txHash: string;
+  createdAt: string;
+}
+
+interface Notification {
+  id: number;
+  pair?: string;
+  type:
+    | "BUY"
+    | "SELL"
+    | "INVEST_SUCCESS"
+    | "EXPORT_SUCCESS"
+    | "EARNINGS_EXPORT";
+  price?: string;
+  title?: string;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+interface CustomerData {
+  customer: Customer;
+  deposite: Transaction[];
+  withdrawal: Transaction[];
+  customer_investment: CustomerInvestment[];
+  prestige_wealth_address: { wallet_address: string };
+}
+
+interface DepositInstructions {
+  currency: string;
+  amount: string | number;
+  address?: string;
+  network: string;
+}
+
+interface WithdrawInstructions {
+  currency: string;
+  amount: number;
+  address: string;
+  status: string;
+}
+
+interface InvestInstructions {
+  coin: string;
+  amount: string | number;
+  dailyEarnings: string;
+  period: string;
+  estimatedTotal: string;
+}
+
+interface Trade {
+  id: number;
+  pair: string;
+  type: string;
+  amount: number;
+  entry: string;
+  pnl: number;
+}
+
+interface MiningCoin {
+  id: string;
+  name: string;
+  symbol: string;
+  icon: React.ReactNode;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  dailyEarning: number;
+  dailyEarnings: string;
+  investmentPeriod: string;
+  minInvestment: number;
+  maxInvestment: number;
+  roi: number;
+  roiPercentage: string;
+  hashRate: string;
+  profitReturn: number;
+  totalInvestors: number;
+  non_of_days: number;
+  abbr: string;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPair, setSelectedPair] = useState("BTCUSDT");
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showTradeModal, setShowTradeModal] = useState(false);
-  const [activeTrades, setActiveTrades] = useState([]);
+  const [activeTrades, setActiveTrades] = useState<Trade[]>([]);
   const [showDeposit, setShowDeposit] = useState(false);
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [showInvest, setShowInvest] = useState(false);
-  const [deposits, setDeposits] = useState([]);
-  const [withdrawals, setWithdrawals] = useState([]);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [showInvestForm, setShowInvestForm] = useState(false);
@@ -117,28 +262,39 @@ export default function Dashboard() {
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [investAmount, setInvestAmount] = useState("");
   const [selectedCrypto, setSelectedCrypto] = useState("BTC");
-  const [selectedInvestCoin, setSelectedInvestCoin] = useState(null);
+  const [selectedInvestCoin, setSelectedInvestCoin] =
+    useState<MiningCoin | null>(null);
+  const [tradeType, setTradeType] = useState("BUY");
   const [copied, setCopied] = useState(false);
-  const [depositInstructions, setDepositInstructions] = useState(null);
-  const [withdrawInstructions, setWithdrawInstructions] = useState(null);
-  const [investInstructions, setInvestInstructions] = useState(null);
-  const tvContainer = useRef(null);
-  const [investLoading, setInvestLoading] = useState(false);
+  const [depositInstructions, setDepositInstructions] =
+    useState<DepositInstructions | null>(null);
+  const [withdrawInstructions, setWithdrawInstructions] =
+    useState<WithdrawInstructions | null>(null);
+  const [investInstructions, setInvestInstructions] =
+    useState<InvestInstructions | null>(null);
+  const tvContainer = useRef<HTMLDivElement>(null);
   const [investError, setInvestError] = useState("");
-  const [miningCoins, setMiningCoins] = useState([]);
+  const [miningCoins, setMiningCoins] = useState<MiningCoin[]>([]);
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [processingInvestId, setProcessingInvestId] = useState(null);
-  const [customerData, setCustomerData] = useState(null);
-  const [activeInvestments, setActiveInvestments] = useState([]);
+  const [processingInvestId, setProcessingInvestId] = useState<string | null>(
+    null
+  );
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
+  const [activeInvestments, setActiveInvestments] = useState<
+    ActiveInvestment[]
+  >([]);
   const [loadingCustomerData, setLoadingCustomerData] = useState(true);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [totalInvested, setTotalInvested] = useState(0);
   const [accountBalance, setAccountBalance] = useState(0);
   const [userInteracted, setUserInteracted] = useState(false);
 
-  const cryptoWallets = {
+  const cryptoWallets: Record<
+    string,
+    { address: string; network: string; qrCode: string }
+  > = {
     USDT: {
       address: "TBA1Lh3aJ...RtFDBTTRdBM",
       network: "TRC20",
@@ -178,107 +334,109 @@ export default function Dashboard() {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchCustomerData = async () => {
-      try {
-        const token = localStorage.getItem("access_token");
-        if (!token) {
-          router.push("/accounts/login");
-          return;
-        }
-
-        const response = await tradeApi.get("customer/account/");
-        console.log("Customer API Response:", response); // Debug log
-        setCustomerData(response); // Set the response directly to state
-
-        if (response?.customer?.account_balance) {
-          const balance = parseFloat(response.customer.account_balance);
-          setAccountBalance(balance);
-        }
-
-        if (response?.customer_investment) {
-          const activeInvests = response.customer_investment
-            .filter((inv) => inv.is_active)
-            .map((inv) => ({
-              ...inv,
-              startDate: new Date(inv.created_at),
-              daysActive: Math.floor(
-                (new Date() - new Date(inv.created_at)) / (1000 * 60 * 60 * 24)
-              ),
-            }));
-          setActiveInvestments(activeInvests);
-
-          const earningsTotal = response.customer_investment.reduce(
-            (sum, inv) => {
-              return sum + parseFloat(inv.earnings || 0);
-            },
-            0
-          );
-
-          const investedTotal = response.customer_investment.reduce(
-            (sum, inv) => {
-              return sum + parseFloat(inv.amount || 0);
-            },
-            0
-          );
-
-          setTotalEarnings(earningsTotal);
-          setTotalInvested(investedTotal);
-        }
-
-        if (response?.deposite) {
-          console.log("Deposits from API:", response.deposite); // Debug log
-          setDeposits(
-            response.deposite.map((dep) => ({
-              id: dep.id,
-              amount: parseFloat(dep.amount),
-              currency: "USDT",
-              status: dep.status === "success" ? "completed" : dep.status,
-              date: new Date(dep.created_at).toISOString().split("T")[0],
-              txHash: dep.transaction_id,
-              address_wallet: dep.address_wallet, // Add wallet address to state
-              network: "TRC20",
-              createdAt: dep.created_at,
-            }))
-          );
-        }
-
-        if (response?.withdrawal) {
-          console.log("Withdrawals from API:", response.withdrawal); // Debug log
-          setWithdrawals(
-            response.withdrawal.map((wd) => ({
-              id: wd.id,
-              amount: parseFloat(wd.amount),
-              currency: "USDT",
-              status: wd.status === "success" ? "completed" : wd.status,
-              date: new Date(wd.created_at).toISOString().split("T")[0],
-              address: wd.address_wallet || "N/A",
-              txHash: wd.transaction_id,
-              createdAt: wd.created_at,
-            }))
-          );
-        }
-      } catch (error) {
-        console.error("Failed to fetch customer data:", error);
-        // If fetching data fails (e.g. invalid token), redirect to login
+  const fetchCustomerData = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
         router.push("/accounts/login");
-      } finally {
-        setLoadingCustomerData(false);
+        return;
       }
-    };
 
-    fetchCustomerData();
+      const response = await tradeApi.get<CustomerData>("customer/account/");
+      console.log("Customer API Response:", response); // Debug log
+      setCustomerData(response); // Set the response directly to state
+
+      if (response?.customer?.account_balance) {
+        const balance = parseFloat(response.customer.account_balance);
+        setAccountBalance(balance);
+      }
+
+      if (response?.customer_investment) {
+        const activeInvests = response.customer_investment
+          .filter((inv) => inv.is_active)
+          .map((inv) => ({
+            ...inv,
+            startDate: new Date(inv.created_at),
+            daysActive: Math.floor(
+              (new Date().getTime() - new Date(inv.created_at).getTime()) /
+                (1000 * 60 * 60 * 24)
+            ),
+          }));
+        setActiveInvestments(activeInvests);
+
+        const earningsTotal = response.customer_investment.reduce(
+          (sum, inv) => {
+            return sum + parseFloat(inv.earnings || "0");
+          },
+          0
+        );
+
+        const investedTotal = response.customer_investment.reduce(
+          (sum, inv) => {
+            return sum + parseFloat(inv.amount || "0");
+          },
+          0
+        );
+
+        setTotalEarnings(earningsTotal);
+        setTotalInvested(investedTotal);
+      }
+
+      if (response?.deposite) {
+        console.log("Deposits from API:", response.deposite); // Debug log
+        setDeposits(
+          response.deposite.map((dep) => ({
+            ...dep,
+            currency: "USDT",
+            status: dep.status === "success" ? "completed" : dep.status,
+            date: new Date(dep.created_at).toISOString().split("T")[0],
+            txHash: dep.transaction_id,
+            network: "TRC20",
+            createdAt: dep.created_at,
+          }))
+        );
+      }
+
+      if (response?.withdrawal) {
+        console.log("Withdrawals from API:", response.withdrawal); // Debug log
+        setWithdrawals(
+          response.withdrawal.map((wd) => ({
+            ...wd,
+            currency: "USDT",
+            status: wd.status === "success" ? "completed" : wd.status,
+            date: new Date(wd.created_at).toISOString().split("T")[0],
+            address: wd.address_wallet || "N/A",
+            txHash: wd.transaction_id,
+            createdAt: wd.created_at,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to fetch customer data:", error);
+      // If fetching data fails (e.g. invalid token), redirect to login
+      router.push("/accounts/login");
+    } finally {
+      setLoadingCustomerData(false);
+    }
   }, [router]);
+
+  useEffect(() => {
+    fetchCustomerData();
+  }, [fetchCustomerData]);
 
   useEffect(() => {
     const fetchInvestments = async () => {
       setIsLoading(true);
       try {
-        const response = await tradeApi.get("investment/");
+        const response = await tradeApi.get<
+          InvestmentApiResponse[] | { data: InvestmentApiResponse[] }
+        >("investment/");
         console.log("Investments API Response:", response); // Debug log
 
         // Check if response is an array or has a data property
-        const plansData = Array.isArray(response) ? response : response.data;
+        const plansData = Array.isArray(response)
+          ? response
+          : (response as { data: InvestmentApiResponse[] }).data;
 
         const plans = plansData.map((plan) => {
           const dailyEarning = parseFloat(plan.daily_earning);
@@ -287,7 +445,7 @@ export default function Dashboard() {
             plan.non_of_days ||
             (dailyEarning > 0 ? Math.round(roi / dailyEarning) : 0);
 
-          const icons = {
+          const icons: Record<string, React.ReactNode> = {
             BTC: <BitcoinIcon />,
             ETH: <EthereumIcon />,
             LTC: <Hash className="w-8 h-8" />,
@@ -298,7 +456,7 @@ export default function Dashboard() {
             BNB: <Battery className="w-8 h-8" />,
           };
 
-          const colors = {
+          const colors: Record<string, string> = {
             BTC: "from-amber-500 to-orange-500",
             ETH: "from-purple-500 to-indigo-500",
             LTC: "from-blue-400 to-cyan-500",
@@ -309,7 +467,7 @@ export default function Dashboard() {
             BNB: "from-yellow-500 to-amber-500",
           };
 
-          const bgColors = {
+          const bgColors: Record<string, string> = {
             BTC: "bg-amber-50",
             ETH: "bg-purple-50",
             LTC: "bg-blue-50",
@@ -320,7 +478,7 @@ export default function Dashboard() {
             BNB: "bg-yellow-50",
           };
 
-          const borderColors = {
+          const borderColors: Record<string, string> = {
             BTC: "border-amber-100",
             ETH: "border-purple-100",
             LTC: "border-blue-100",
@@ -375,7 +533,8 @@ export default function Dashboard() {
     script.async = true;
     script.onload = () => {
       try {
-        new window.TradingView.widget({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        new (window as any).TradingView.widget({
           autosize: true,
           symbol: selectedPair,
           interval: "1",
@@ -385,16 +544,18 @@ export default function Dashboard() {
           locale: "en",
           container_id: "tv_chart_container",
         });
-      } catch (err) {
-        tvContainer.current.innerHTML =
-          '<div class="flex items-center justify-center h-full text-sm text-gray-500">Unable to load TradingView chart.</div>';
+      } catch {
+        if (tvContainer.current) {
+          tvContainer.current.innerHTML =
+            '<div class="flex items-center justify-center h-full text-sm text-gray-500">Unable to load TradingView chart.</div>';
+        }
       }
     };
     tvContainer.current.appendChild(script);
     return () => {
       try {
         script.remove();
-      } catch (e) {}
+      } catch {}
     };
   }, [selectedPair]);
 
@@ -404,12 +565,12 @@ export default function Dashboard() {
         "https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3"
       );
       audio.play().catch((e) => console.error("Error playing sound:", e));
-    } catch (e) {}
+    } catch {}
   }
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const sig = {
+      const sig: Notification = {
         id: Date.now(),
         pair: selectedPair,
         type: Math.random() > 0.5 ? "BUY" : "SELL",
@@ -425,11 +586,11 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [selectedPair, userInteracted]);
 
-  function submitTrade(e) {
+  function submitTrade(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.target);
-    const type = form.get("type") || "BUY";
-    const amount = parseFloat(form.get("amount") || "0");
+    const form = new FormData(e.currentTarget);
+    const type = form.get("type")?.toString() || "BUY";
+    const amount = parseFloat(form.get("amount")?.toString() || "0");
     const entryPrice = (20000 + Math.random() * 500).toFixed(2);
 
     setActiveTrades((prev) => [
@@ -459,16 +620,16 @@ export default function Dashboard() {
     return () => clearInterval(int);
   }, []);
 
-  function closeTrade(id) {
+  function closeTrade(id: number) {
     setActiveTrades((prev) => prev.filter((t) => t.id !== id));
   }
 
-  function copyToClipboard(text) {
+  function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
-  const showDepositInstructions = (deposit) => {
+  const showDepositInstructions = (deposit: Deposit) => {
     setDepositInstructions({
       currency: deposit.currency,
       amount: deposit.amount,
@@ -478,7 +639,7 @@ export default function Dashboard() {
     setShowDepositForm(false);
   };
 
-  async function submitDeposit(e) {
+  async function submitDeposit(e: React.FormEvent) {
     e.preventDefault();
     if (!depositAmount || parseFloat(depositAmount) <= 0) return;
 
@@ -496,7 +657,7 @@ export default function Dashboard() {
         // Assuming the response contains the deposit details including the address
         setDepositInstructions({
           currency: selectedCrypto, // Currently hardcoded to BTC
-          amount: parseFloat(response.amount),
+          amount: parseFloat((response as { amount: string }).amount),
           address: customerData?.prestige_wealth_address?.wallet_address,
           network: cryptoWallets[selectedCrypto].network, // Assuming network is static for now
         });
@@ -507,21 +668,22 @@ export default function Dashboard() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || "An unexpected error occurred.";
+        (err as { response?: { data?: { message?: string } } }).response?.data
+          ?.message || "An unexpected error occurred.";
       setDepositError(errorMessage);
     } finally {
       setDepositLoading(false);
     }
   }
 
-  function submitWithdraw(e) {
+  function submitWithdraw(e: React.FormEvent) {
     e.preventDefault();
     if (!withdrawAmount || parseFloat(withdrawAmount) <= 0 || !withdrawAddress)
       return;
 
     const newWithdrawal = {
-      id: Date.now(),
-      amount: parseFloat(withdrawAmount),
+      id: Date.now().toString(),
+      amount: withdrawAmount,
       currency: selectedCrypto,
       status: "pending",
       date: new Date().toISOString().split("T")[0],
@@ -529,6 +691,10 @@ export default function Dashboard() {
       txHash: `0x${Math.random().toString(16).slice(2)}...${Math.random()
         .toString(16)
         .slice(2)}`,
+      created_at: new Date().toISOString(),
+      transaction_id: `tx_${Date.now()}`,
+      address_wallet: withdrawAddress,
+      createdAt: new Date().toISOString(),
     };
 
     setWithdrawals((prev) => [newWithdrawal, ...prev]);
@@ -543,8 +709,8 @@ export default function Dashboard() {
     setWithdrawAddress("");
   }
 
-  async function submitInvest(coin, amount) {
-    if (!coin || !amount || amount <= 0) return;
+  async function submitInvest(coin: MiningCoin, amount: string) {
+    if (!coin || !amount || parseFloat(amount) <= 0) return;
 
     const token = localStorage.getItem("access_token");
     if (!token) {
@@ -553,7 +719,6 @@ export default function Dashboard() {
     }
 
     setProcessingInvestId(coin.id);
-    setInvestLoading(true);
     setInvestError("");
 
     try {
@@ -580,7 +745,7 @@ export default function Dashboard() {
       if (response) {
         resetToTrading();
 
-        const successNotification = {
+        const successNotification: Notification = {
           id: Date.now(),
           type: "INVEST_SUCCESS",
           title: "Investment Successful!",
@@ -600,11 +765,11 @@ export default function Dashboard() {
       }
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message || "An unexpected error occurred.";
+        (err as { response?: { data?: { message?: string } } }).response?.data
+          ?.message || "An unexpected error occurred.";
       setInvestError(errorMessage);
       setTimeout(() => setInvestError(""), 5000);
     } finally {
-      setInvestLoading(false);
       setProcessingInvestId(null);
     }
   }
@@ -666,7 +831,8 @@ export default function Dashboard() {
       inv.is_active ? "Active" : "Inactive",
       new Date(inv.created_at).toLocaleDateString(),
       Math.floor(
-        (new Date() - new Date(inv.created_at)) / (1000 * 60 * 60 * 24)
+        (new Date().getTime() - new Date(inv.created_at).getTime()) /
+          (1000 * 60 * 60 * 24)
       ),
     ]);
 
@@ -685,7 +851,7 @@ export default function Dashboard() {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 
-    const successNotification = {
+    const successNotification: Notification = {
       id: Date.now(),
       type: "EXPORT_SUCCESS",
       title: "Export Successful",
@@ -721,7 +887,7 @@ export default function Dashboard() {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
 
-    const successNotification = {
+    const successNotification: Notification = {
       id: Date.now(),
       type: "EXPORT_SUCCESS",
       title: "Balance Exported",
@@ -735,24 +901,27 @@ export default function Dashboard() {
     }, 6000);
   };
 
-  const handleExportEarnings = (investment) => {
+  const handleExportEarnings = (investment: ActiveInvestment) => {
     const earningsData = {
       investment_id: investment.id,
       investment_name: investment.investment.name,
       amount: parseFloat(investment.amount),
-      current_earnings: parseFloat(investment.earnings || 0),
-      daily_earning_rate: parseFloat(investment.investment.daily_earning),
-      roi: parseFloat(investment.investment.roi),
+      current_earnings: parseFloat(investment.earnings || "0"),
+      daily_earning_rate: parseFloat(
+        String(investment.investment.daily_earning)
+      ),
+      roi: parseFloat(String(investment.investment.roi)),
       period: investment.investment.non_of_days,
       hash_rate: investment.investment.hash_rate,
       start_date: investment.created_at,
       days_active: Math.floor(
-        (new Date() - new Date(investment.created_at)) / (1000 * 60 * 60 * 24)
+        (new Date().getTime() - new Date(investment.created_at).getTime()) /
+          (1000 * 60 * 60 * 24)
       ),
       export_date: new Date().toISOString(),
     };
 
-    const successNotification = {
+    const successNotification: Notification = {
       id: Date.now(),
       type: "EARNINGS_EXPORT",
       title: "Earnings Export Ready",
@@ -769,7 +938,7 @@ export default function Dashboard() {
     }, 6000);
   };
 
-  const viewInvestmentDetails = (investment) => {
+  const viewInvestmentDetails = (investment: ActiveInvestment) => {
     const plan = investment.investment;
     alert(
       `Investment Details:\n\nName: ${plan.name}\nAmount: $${
@@ -778,9 +947,9 @@ export default function Dashboard() {
         plan.non_of_days
       } days\nHash Rate: ${
         plan.hash_rate
-      } TH/s\nCurrent Earnings: $${parseFloat(investment.earnings || 0).toFixed(
-        2
-      )}`
+      } TH/s\nCurrent Earnings: $${parseFloat(
+        investment.earnings || "0"
+      ).toFixed(2)}`
     );
   };
 
@@ -796,15 +965,7 @@ export default function Dashboard() {
     return customerData?.customer?.phone_number || "User";
   };
 
-  const getContactInfo = () => {
-    return (
-      customerData?.customer?.email ||
-      customerData?.customer?.phone_number ||
-      "No contact info"
-    );
-  };
-
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -875,6 +1036,7 @@ export default function Dashboard() {
           <div className="flex items-center space-x-4 relative z-10">
             <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-inner overflow-hidden">
               {customerData?.customer?.photo ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={customerData.customer.photo}
                   alt="Profile"
@@ -1205,10 +1367,12 @@ export default function Dashboard() {
                     </button>
                   </div>
                   <div className="max-h-80 overflow-auto p-2">
-                    {activeInvestments.map((investment, index) => {
+                    {activeInvestments.map((investment) => {
                       const plan = investment.investment;
-                      const dailyEarning = parseFloat(plan.daily_earning);
-                      const roi = parseFloat(plan.roi);
+                      const dailyEarning = parseFloat(
+                        String(plan.daily_earning)
+                      );
+                      const roi = parseFloat(String(plan.roi));
                       const period =
                         plan.non_of_days ||
                         (dailyEarning > 0 ? Math.round(roi / dailyEarning) : 0);
@@ -1235,7 +1399,8 @@ export default function Dashboard() {
 
                       const createdDate = new Date(investment.created_at);
                       const daysActive = Math.floor(
-                        (new Date() - createdDate) / (1000 * 60 * 60 * 24)
+                        (new Date().getTime() - createdDate.getTime()) /
+                          (1000 * 60 * 60 * 24)
                       );
                       const remainingDays = Math.max(0, period - daysActive);
                       const dailyEarningAmount = (amount * dailyEarning) / 100;
@@ -1331,7 +1496,7 @@ export default function Dashboard() {
                               </div>
                               <div className="font-bold text-green-600">
                                 +$
-                                {parseFloat(investment.earnings || 0).toFixed(
+                                {parseFloat(investment.earnings || "0").toFixed(
                                   2
                                 )}
                               </div>
@@ -1453,14 +1618,15 @@ export default function Dashboard() {
                               <button
                                 onClick={() => {
                                   const blob = new Blob(
-                                    [JSON.stringify(n.data, null, 2)],
+                                    [JSON.stringify(n.data || {}, null, 2)],
                                     { type: "application/json" }
                                   );
                                   const url = window.URL.createObjectURL(blob);
                                   const a = document.createElement("a");
                                   a.href = url;
                                   a.download = `earnings-${
-                                    n.data.investment_id
+                                    (n.data as { investment_id?: string })
+                                      ?.investment_id || "unknown"
                                   }-${
                                     new Date().toISOString().split("T")[0]
                                   }.json`;
@@ -1672,7 +1838,9 @@ export default function Dashboard() {
                                 </code>
                                 <button
                                   onClick={() =>
-                                    copyToClipboard(depositInstructions.address)
+                                    copyToClipboard(
+                                      depositInstructions.address || ""
+                                    )
                                   }
                                   className="ml-3 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-400 text-white rounded-lg hover:shadow-lg transition-all duration-200 flex items-center space-x-2"
                                 >
@@ -1711,6 +1879,7 @@ export default function Dashboard() {
                             </p>
                             <div className="text-center">
                               <div className="w-48 h-48 mx-auto bg-white p-4 rounded-xl border border-gray-200">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${
                                     depositInstructions.address || ""
@@ -1922,7 +2091,10 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-500 mt-1">
                         Total Deposits: $
                         {deposits
-                          .reduce((sum, dep) => sum + dep.amount, 0)
+                          .reduce(
+                            (sum, dep) => sum + parseFloat(dep.amount || "0"),
+                            0
+                          )
                           .toFixed(2)}
                       </p>
                     </div>
@@ -1962,7 +2134,7 @@ export default function Dashboard() {
                             >
                               <td className="py-4 px-6">
                                 <div className="font-bold text-gray-900">
-                                  {deposit.amount.toLocaleString()}{" "}
+                                  {parseFloat(deposit.amount).toLocaleString()}{" "}
                                   {deposit.currency}
                                 </div>
                               </td>
@@ -2038,7 +2210,7 @@ export default function Dashboard() {
                                     onClick={() =>
                                       copyToClipboard(
                                         customerData?.prestige_wealth_address
-                                          ?.wallet_address
+                                          ?.wallet_address || ""
                                       )
                                     }
                                     className="p-1 hover:bg-gray-100 rounded"
@@ -2199,8 +2371,8 @@ export default function Dashboard() {
                               <li className="flex items-start">
                                 <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3"></div>
                                 <span>
-                                  Contact support if you don't receive funds
-                                  within 48 hours
+                                  Contact support if you don&apos;t receive
+                                  funds within 48 hours
                                 </span>
                               </li>
                             </ul>
@@ -2317,7 +2489,7 @@ export default function Dashboard() {
                             value={withdrawAddress}
                             onChange={(e) => setWithdrawAddress(e.target.value)}
                             placeholder="Paste your wallet address here..."
-                            rows="3"
+                            rows={3}
                             className="w-full px-4 py-3 text-sm border-2 border-blue-100 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 font-mono resize-none"
                             required
                           />
@@ -2384,7 +2556,10 @@ export default function Dashboard() {
                       <p className="text-sm text-gray-500 mt-1">
                         Total Withdrawn: $
                         {withdrawals
-                          .reduce((sum, wd) => sum + wd.amount, 0)
+                          .reduce(
+                            (sum, wd) => sum + parseFloat(wd.amount || "0"),
+                            0
+                          )
                           .toFixed(2)}
                       </p>
                     </div>
@@ -2769,7 +2944,8 @@ export default function Dashboard() {
                               type="button"
                               onClick={() =>
                                 setInvestAmount(
-                                  selectedInvestCoin?.minInvestment.toString()
+                                  selectedInvestCoin?.minInvestment.toString() ||
+                                    "0"
                                 )
                               }
                               className="text-blue-600 hover:text-blue-700 font-medium"
@@ -2789,9 +2965,7 @@ export default function Dashboard() {
                                 $
                                 {(
                                   (parseFloat(investAmount || "0") *
-                                    parseFloat(
-                                      selectedInvestCoin?.dailyEarning || "0"
-                                    )) /
+                                    (selectedInvestCoin?.dailyEarning || 0)) /
                                   100
                                 ).toFixed(2)}
                               </span>
@@ -2804,8 +2978,7 @@ export default function Dashboard() {
                                 $
                                 {(
                                   parseFloat(investAmount || "0") *
-                                  (parseFloat(selectedInvestCoin?.roi || "0") /
-                                    100)
+                                  ((selectedInvestCoin?.roi || 0) / 100)
                                 ).toFixed(2)}
                               </span>
                             </div>
@@ -2827,6 +3000,7 @@ export default function Dashboard() {
                           </button>
                           <button
                             onClick={() =>
+                              selectedInvestCoin &&
                               submitInvest(selectedInvestCoin, investAmount)
                             }
                             disabled={
@@ -2967,7 +3141,10 @@ export default function Dashboard() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    submitInvest(coin, coin.minInvestment);
+                                    submitInvest(
+                                      coin,
+                                      coin.minInvestment.toString()
+                                    );
                                   }}
                                   disabled={processingInvestId === coin.id}
                                   className="w-full py-3 bg-gradient-to-r from-blue-600 to-sky-500 text-white font-semibold rounded-xl hover:shadow-lg transition-all duration-200 flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
@@ -3094,9 +3271,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() =>
-                        (document.querySelector('[name="type"]').value = "BUY")
-                      }
+                      onClick={() => setTradeType("BUY")}
                       className="p-4 border-2 border-green-200 bg-green-50 rounded-xl hover:bg-green-100 hover:border-green-300 transition-all duration-200 group"
                     >
                       <div className="flex items-center justify-center space-x-2">
@@ -3106,9 +3281,7 @@ export default function Dashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() =>
-                        (document.querySelector('[name="type"]').value = "SELL")
-                      }
+                      onClick={() => setTradeType("SELL")}
                       className="p-4 border-2 border-red-200 bg-red-50 rounded-xl hover:bg-red-100 hover:border-red-300 transition-all duration-200 group"
                     >
                       <div className="flex items-center justify-center space-x-2">
@@ -3117,7 +3290,7 @@ export default function Dashboard() {
                       </div>
                     </button>
                   </div>
-                  <input type="hidden" name="type" defaultValue="BUY" />
+                  <input type="hidden" name="type" value={tradeType} />
                 </div>
 
                 <div>

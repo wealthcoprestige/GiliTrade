@@ -10,23 +10,18 @@ import {
   CheckCircle,
   ArrowRight,
   BarChart3,
-  Lock,
   Globe,
-  Award,
   ChevronRight,
   Sparkles,
   Coins,
   Wallet,
   Cpu,
-  Activity,
-  Bitcoin,
   Circle,
   Menu,
   X,
   Phone,
   Mail,
   MessageSquare,
-  ExternalLink,
 } from "lucide-react";
 import { tradeApi } from "@/app/lib/axiosinstance";
 
@@ -88,12 +83,34 @@ const BitcoinIcon = () => (
   </svg>
 );
 
+interface InvestmentPlanResponse {
+  id: string;
+  name: string;
+  daily_earning: string;
+  roi: string;
+  non_of_days: number;
+  amount: string;
+  abbr: string;
+}
+
+interface InvestmentPlan {
+  id: string;
+  name: string;
+  minAmount: string;
+  dailyReturn: string;
+  period: string;
+  totalReturn: string;
+  features: string[];
+  color: string;
+  popular: boolean;
+}
+
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [investmentPlans, setInvestmentPlans] = useState([]);
+  const [investmentPlans, setInvestmentPlans] = useState<InvestmentPlan[]>([]);
 
   const stats = [
     {
@@ -194,33 +211,37 @@ export default function LandingPage() {
   useEffect(() => {
     const fetchInvestments = async () => {
       try {
-        const response = await tradeApi.get<{ data: any[] }>("investment/");
-        const plans = response.data.map((plan: any, index: number) => {
-          const dailyEarning = parseFloat(plan.daily_earning);
-          const roi = parseFloat(plan.roi);
-          const period =
-            plan.non_of_days ||
-            (dailyEarning > 0 ? Math.round(roi / dailyEarning) : 0);
-          const planName = plan.name.split(" ")[0]; // e.g., "Starter" from "Starter Plan"
+        const response = await tradeApi.get<{ data: InvestmentPlanResponse[] }>(
+          "investment/"
+        );
+        const plans = response.data.map(
+          (plan: InvestmentPlanResponse, index: number) => {
+            const dailyEarning = parseFloat(plan.daily_earning);
+            const roi = parseFloat(plan.roi);
+            const period =
+              plan.non_of_days ||
+              (dailyEarning > 0 ? Math.round(roi / dailyEarning) : 0);
+            const planName = plan.name.split(" ")[0]; // e.g., "Starter" from "Starter Plan"
 
-          const colors = [
-            "from-blue-500 to-cyan-500",
-            "from-purple-500 to-pink-500",
-            "from-amber-500 to-red-500",
-          ];
+            const colors = [
+              "from-blue-500 to-cyan-500",
+              "from-purple-500 to-pink-500",
+              "from-amber-500 to-red-500",
+            ];
 
-          return {
-            id: plan.id,
-            name: plan.name,
-            minAmount: `$${parseFloat(plan.amount).toLocaleString()}`,
-            dailyReturn: `${dailyEarning}%`,
-            period: `${period} Days`,
-            totalReturn: `${roi}%`,
-            features: [`${planName} Support`, "Daily Payouts", "Medium Risk"],
-            color: colors[index % colors.length],
-            popular: index === 1, // Make the second plan popular for styling
-          };
-        });
+            return {
+              id: plan.id,
+              name: plan.name,
+              minAmount: `$${parseFloat(plan.amount).toLocaleString()}`,
+              dailyReturn: `${dailyEarning}%`,
+              period: `${period} Days`,
+              totalReturn: `${roi}%`,
+              features: [`${planName} Support`, "Daily Payouts", "Medium Risk"],
+              color: colors[index % colors.length],
+              popular: index === 1, // Make the second plan popular for styling
+            };
+          }
+        );
         // We only want to show 3 plans on the landing page
         setInvestmentPlans(plans.slice(0, 3));
       } catch (error) {
@@ -609,7 +630,9 @@ export default function LandingPage() {
                   ))}
                 </div>
 
-                <p className="text-gray-600 italic">"{testimonial.text}"</p>
+                <p className="text-gray-600 italic">
+                  &quot;{testimonial.text}&quot;
+                </p>
               </div>
             ))}
           </div>
@@ -720,7 +743,7 @@ export default function LandingPage() {
 
               {showSuccess && (
                 <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700">
-                  🎉 Thanks! We'll send you an invitation soon.
+                  🎉 Thanks! We&apos;ll send you an invitation soon.
                 </div>
               )}
 

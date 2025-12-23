@@ -2,7 +2,6 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import Header from "../LandingPage/Header";
 
 function ServicesPage() {
   const router = useRouter();
@@ -269,7 +268,7 @@ function ServicesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+     
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-800 to-blue-600 text-white py-16 sm:py-24">
