@@ -26,7 +26,6 @@ import {
   Coins,
   Hash,
   Layers,
-  Sparkles,
   Download,
   User,
   Phone,
@@ -174,11 +173,26 @@ interface Notification {
     | "SELL"
     | "INVEST_SUCCESS"
     | "EXPORT_SUCCESS"
-    | "EARNINGS_EXPORT";
+    | "EARNINGS_EXPORT"
+    | "TRADE_SUCCESS"
+    | "ERROR";
   price?: string;
   title?: string;
   message?: string;
   data?: Record<string, unknown>;
+}
+
+interface ActiveTrade {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  currency_pair: string;
+  trade: string;
+  amount: string;
+  tradde_amount: string;
+  is_active: boolean;
+  enable_close_trade: boolean;
+  customer: string;
 }
 
 interface CustomerData {
@@ -187,6 +201,7 @@ interface CustomerData {
   withdrawal: Transaction[];
   customer_investment: CustomerInvestment[];
   prestige_wealth_address: { wallet_address: string };
+  active_trade: ActiveTrade[];
 }
 
 interface DepositInstructions {
@@ -212,7 +227,7 @@ interface InvestInstructions {
 }
 
 interface Trade {
-  id: number;
+  id: number | string;
   pair: string;
   type: string;
   amount: number;
@@ -291,6 +306,9 @@ export default function Dashboard() {
   const [accountBalance, setAccountBalance] = useState(0);
   const [userInteracted, setUserInteracted] = useState(false);
   const [isTradeSubmitting, setIsTradeSubmitting] = useState(false);
+  const [closingTradeId, setClosingTradeId] = useState<number | string | null>(
+    null
+  );
 
   const cryptoWallets: Record<
     string,
@@ -409,6 +427,19 @@ export default function Dashboard() {
             address: wd.address_wallet || "N/A",
             txHash: wd.transaction_id,
             createdAt: wd.created_at,
+          }))
+        );
+      }
+
+      if (response?.active_trade) {
+        setActiveTrades(
+          response.active_trade.map((trade) => ({
+            id: trade.id,
+            pair: trade.currency_pair,
+            type: trade.trade.toUpperCase(),
+            amount: parseFloat(trade.amount),
+            entry: "Market",
+            pnl: 0,
           }))
         );
       }
@@ -599,7 +630,8 @@ export default function Dashboard() {
     try {
       const payload = {
         currency_pair: selectedPair,
-        trade: tradeType.charAt(0).toUpperCase() + tradeType.slice(1).toLowerCase(),
+        trade:
+          tradeType.charAt(0).toUpperCase() + tradeType.slice(1).toLowerCase(),
         amount: amount,
       };
 
@@ -621,7 +653,7 @@ export default function Dashboard() {
 
       const successNotification: Notification = {
         id: Date.now(),
-        type: "BUY",
+        type: "TRADE_SUCCESS",
         title: "Trade Opened",
         message: "Trade Created Successfully",
       };
@@ -636,7 +668,7 @@ export default function Dashboard() {
 
       const errorNotification: Notification = {
         id: Date.now(),
-        type: "SELL",
+        type: "ERROR",
         title: "Trade Failed",
         message: typeof errorMsg === "string" ? errorMsg : "An error occurred",
       };
@@ -658,8 +690,40 @@ export default function Dashboard() {
     return () => clearInterval(int);
   }, []);
 
-  function closeTrade(id: number) {
-    setActiveTrades((prev) => prev.filter((t) => t.id !== id));
+  async function closeTrade(id: number | string) {
+    if (closingTradeId) return;
+    setClosingTradeId(id);
+    try {
+      const response = await tradeApi.post(`close/customer/trade/${id}/`);
+
+      setActiveTrades((prev) => prev.filter((t) => t.id !== id));
+
+      const successNotification: Notification = {
+        id: Date.now(),
+        type: "TRADE_SUCCESS",
+        title: "Trade Closed",
+        message:
+          (response as { message?: string })?.message ||
+          "Trade closed successfully",
+      };
+      setNotifications((prev) => [successNotification, ...prev].slice(0, 5));
+      fetchCustomerData();
+    } catch (error) {
+      console.error("Failed to close trade:", error);
+      const errorMsg =
+        (error as { response?: { data?: { message?: string } } }).response?.data
+          ?.message || "Failed to close trade";
+
+      const errorNotification: Notification = {
+        id: Date.now(),
+        type: "ERROR",
+        title: "Close Failed",
+        message: typeof errorMsg === "string" ? errorMsg : "An error occurred",
+      };
+      setNotifications((prev) => [errorNotification, ...prev].slice(0, 5));
+    } finally {
+      setClosingTradeId(null);
+    }
   }
 
   function copyToClipboard(text: string) {
@@ -851,58 +915,6 @@ export default function Dashboard() {
     router.push("/accounts/login");
   };
 
-  const handleExportInvestments = () => {
-    if (activeInvestments.length === 0) return;
-
-    const headers = [
-      "Investment ID",
-      "Amount (USD)",
-      "Earnings (USD)",
-      "Status",
-      "Start Date",
-      "Days Active",
-    ];
-    const csvData = activeInvestments.map((inv) => [
-      inv.id,
-      inv.amount,
-      inv.earnings,
-      inv.is_active ? "Active" : "Inactive",
-      new Date(inv.created_at).toLocaleDateString(),
-      Math.floor(
-        (new Date().getTime() - new Date(inv.created_at).getTime()) /
-          (1000 * 60 * 60 * 24)
-      ),
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) => row.join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `my-investments-${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-
-    const successNotification: Notification = {
-      id: Date.now(),
-      type: "EXPORT_SUCCESS",
-      title: "Export Successful",
-      message: `Exported ${activeInvestments.length} investments to CSV`,
-    };
-    setNotifications((prev) => [successNotification, ...prev].slice(0, 5));
-    setTimeout(() => {
-      setNotifications((prev) =>
-        prev.filter((n) => n.id !== successNotification.id)
-      );
-    }, 6000);
-  };
-
   const handleExportBalance = () => {
     const balanceData = {
       account_balance: accountBalance,
@@ -937,58 +949,6 @@ export default function Dashboard() {
         prev.filter((n) => n.id !== successNotification.id)
       );
     }, 6000);
-  };
-
-  const handleExportEarnings = (investment: ActiveInvestment) => {
-    const earningsData = {
-      investment_id: investment.id,
-      investment_name: investment.investment.name,
-      amount: parseFloat(investment.amount),
-      current_earnings: parseFloat(investment.earnings || "0"),
-      daily_earning_rate: parseFloat(
-        String(investment.investment.daily_earning)
-      ),
-      roi: parseFloat(String(investment.investment.roi)),
-      period: investment.investment.non_of_days,
-      hash_rate: investment.investment.hash_rate,
-      start_date: investment.created_at,
-      days_active: Math.floor(
-        (new Date().getTime() - new Date(investment.created_at).getTime()) /
-          (1000 * 60 * 60 * 24)
-      ),
-      export_date: new Date().toISOString(),
-    };
-
-    const successNotification: Notification = {
-      id: Date.now(),
-      type: "EARNINGS_EXPORT",
-      title: "Earnings Export Ready",
-      message: `Earnings for ${investment.investment.name} prepared for export`,
-      data: earningsData,
-    };
-
-    setNotifications((prev) => [successNotification, ...prev].slice(0, 5));
-
-    setTimeout(() => {
-      setNotifications((prev) =>
-        prev.filter((n) => n.id !== successNotification.id)
-      );
-    }, 6000);
-  };
-
-  const viewInvestmentDetails = (investment: ActiveInvestment) => {
-    const plan = investment.investment;
-    alert(
-      `Investment Details:\n\nName: ${plan.name}\nAmount: $${
-        investment.amount
-      }\nDaily Earnings: ${plan.daily_earning}%\nROI: ${plan.roi}%\nPeriod: ${
-        plan.non_of_days
-      } days\nHash Rate: ${
-        plan.hash_rate
-      } TH/s\nCurrent Earnings: $${parseFloat(
-        investment.earnings || "0"
-      ).toFixed(2)}`
-    );
   };
 
   const getDisplayName = () => {
@@ -1479,6 +1439,38 @@ export default function Dashboard() {
                           </div>
                         </div>
                       </div>
+                    ) : n.type === "TRADE_SUCCESS" ? (
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start space-x-3">
+                          <div className="p-2 rounded-lg bg-green-100">
+                            <Check className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900">
+                              {n.title}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {n.message}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : n.type === "ERROR" ? (
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start space-x-3">
+                          <div className="p-2 rounded-lg bg-red-100">
+                            <X className="w-5 h-5 text-red-600" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900">
+                              {n.title}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {n.message}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className="flex justify-between items-start">
                         <div className="flex items-start space-x-3">
@@ -1521,7 +1513,7 @@ export default function Dashboard() {
             )}
 
             {activeTrades.length > 0 && (
-              <div className="absolute left-6 bottom-6 z-30 w-96 animate-fade-in">
+              <div className="absolute left-4 right-4 bottom-24 md:left-6 md:right-auto md:bottom-6 z-30 md:w-96 animate-fade-in">
                 <div className="bg-white rounded-2xl shadow-2xl border border-blue-100 overflow-hidden">
                   <div className="p-4 bg-gradient-to-r from-blue-50 to-sky-50 border-b border-blue-100">
                     <h3 className="font-bold text-gray-800 flex items-center">
@@ -1567,9 +1559,14 @@ export default function Dashboard() {
                           </div>
                           <button
                             onClick={() => closeTrade(t.id)}
-                            className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-sm font-semibold rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95"
+                            disabled={closingTradeId === t.id}
+                            className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-400 text-white text-sm font-semibold rounded-lg opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed min-w-[80px] flex justify-center"
                           >
-                            Close
+                            {closingTradeId === t.id ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              "Close"
+                            )}
                           </button>
                         </div>
                       </div>
