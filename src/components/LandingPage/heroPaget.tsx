@@ -23,7 +23,7 @@ import {
   Mail,
   MessageSquare,
 } from "lucide-react";
-import { tradeApi } from "@/app/lib/axiosinstance";
+import { tradeApi } from "@/components/axios/axiosInsatance";
 
 // Ethereum Icon Component
 const EthereumIcon = () => (

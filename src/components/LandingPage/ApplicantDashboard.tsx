@@ -290,6 +290,7 @@ export default function Dashboard() {
   const [totalInvested, setTotalInvested] = useState(0);
   const [accountBalance, setAccountBalance] = useState(0);
   const [userInteracted, setUserInteracted] = useState(false);
+  const [isTradeSubmitting, setIsTradeSubmitting] = useState(false);
 
   const cryptoWallets: Record<
     string,
@@ -586,26 +587,64 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [selectedPair, userInteracted]);
 
-  function submitTrade(e: React.FormEvent<HTMLFormElement>) {
+  async function submitTrade(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const type = form.get("type")?.toString() || "BUY";
-    const amount = parseFloat(form.get("amount")?.toString() || "0");
-    const entryPrice = (20000 + Math.random() * 500).toFixed(2);
+    const amount = form.get("amount")?.toString() || "0";
 
-    setActiveTrades((prev) => [
-      {
+    if (!amount || parseFloat(amount) <= 0) return;
+
+    setIsTradeSubmitting(true);
+
+    try {
+      const payload = {
+        currency_pair: selectedPair,
+        trade:
+          tradeType.charAt(0).toUpperCase() + tradeType.slice(1).toLowerCase(),
+        amount: amount,
+      };
+
+      await tradeApi.post("trade/open-trade/", payload);
+
+      const entryPrice = (20000 + Math.random() * 500).toFixed(2);
+
+      setActiveTrades((prev) => [
+        {
+          id: Date.now(),
+          pair: selectedPair,
+          type: tradeType,
+          amount: parseFloat(amount),
+          entry: entryPrice,
+          pnl: 0,
+        },
+        ...prev,
+      ]);
+
+      const successNotification: Notification = {
         id: Date.now(),
-        pair: selectedPair,
-        type,
-        amount,
-        entry: entryPrice,
-        pnl: 0,
-      },
-      ...prev,
-    ]);
+        type: "BUY",
+        title: "Trade Opened",
+        message: "Trade Created Successfully",
+      };
+      setNotifications((prev) => [successNotification, ...prev].slice(0, 5));
+      setShowTradeModal(false);
+      fetchCustomerData();
+    } catch (error) {
+      console.error("Trade failed:", error);
+      const errorMsg =
+        (error as { response?: { data?: { message?: string } } }).response?.data
+          ?.message || "Failed to open trade";
 
-    setShowTradeModal(false);
+      const errorNotification: Notification = {
+        id: Date.now(),
+        type: "SELL",
+        title: "Trade Failed",
+        message: typeof errorMsg === "string" ? errorMsg : "An error occurred",
+      };
+      setNotifications((prev) => [errorNotification, ...prev].slice(0, 5));
+    } finally {
+      setIsTradeSubmitting(false);
+    }
   }
 
   useEffect(() => {
@@ -3052,12 +3091,17 @@ export default function Dashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Trading Pair
                   </label>
-                  <div className="p-4 bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100 rounded-xl font-semibold text-gray-900 flex items-center justify-between">
-                    <span>{selectedPair.replace("USDT", "/USDT")}</span>
-                    <div className="px-3 py-1 bg-white rounded-lg text-sm shadow-sm">
-                      Live
-                    </div>
-                  </div>
+                  <select
+                    value={selectedPair}
+                    onChange={(e) => setSelectedPair(e.target.value)}
+                    className="w-full px-4 py-4 bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100 rounded-xl font-semibold text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer"
+                  >
+                    <option value="BTCUSDT">BTC/USDT</option>
+                    <option value="ETHUSDT">ETH/USDT</option>
+                    <option value="BNBUSDT">BNB/USDT</option>
+                    <option value="XRPUSDT">XRP/USDT</option>
+                    <option value="SOLUSDT">SOL/USDT</option>
+                  </select>
                 </div>
 
                 <div>
@@ -3068,7 +3112,11 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => setTradeType("BUY")}
-                      className="p-4 border-2 border-green-200 bg-green-50 rounded-xl hover:bg-green-100 hover:border-green-300 transition-all duration-200 group"
+                      className={`p-4 border-2 rounded-xl transition-all duration-200 group ${
+                        tradeType === "BUY"
+                          ? "border-green-500 bg-green-100 shadow-md ring-2 ring-green-200"
+                          : "border-green-200 bg-green-50 hover:bg-green-100 hover:border-green-300 opacity-60 hover:opacity-100"
+                      }`}
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <TrendingUp className="w-5 h-5 text-green-600" />
@@ -3078,7 +3126,11 @@ export default function Dashboard() {
                     <button
                       type="button"
                       onClick={() => setTradeType("SELL")}
-                      className="p-4 border-2 border-red-200 bg-red-50 rounded-xl hover:bg-red-100 hover:border-red-300 transition-all duration-200 group"
+                      className={`p-4 border-2 rounded-xl transition-all duration-200 group ${
+                        tradeType === "SELL"
+                          ? "border-red-500 bg-red-100 shadow-md ring-2 ring-red-200"
+                          : "border-red-200 bg-red-50 hover:bg-red-100 hover:border-red-300 opacity-60 hover:opacity-100"
+                      }`}
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <TrendingDown className="w-5 h-5 text-red-600" />
@@ -3130,9 +3182,17 @@ export default function Dashboard() {
                   </button>
                   <button
                     type="submit"
+                    disabled={isTradeSubmitting}
                     className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-sky-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                   >
-                    Confirm Trade
+                    {isTradeSubmitting ? (
+                      <div className="flex items-center justify-center">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      "Confirm Trade"
+                    )}
                   </button>
                 </div>
               </div>
