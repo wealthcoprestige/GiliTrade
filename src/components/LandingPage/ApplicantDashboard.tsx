@@ -91,7 +91,6 @@ const BitcoinIcon = () => (
     />
   </svg>
 );
-
 interface Customer {
   id: string;
   username: string;
@@ -890,12 +889,12 @@ export default function Dashboard() {
     setShowInvest(false);
   }
 
-  function handleInvestClick() {
-    setSidebarOpen(false);
-    setShowInvest(true);
-    setShowDeposit(false);
-    setShowWithdraw(false);
-  }
+  // function handleInvestClick() {
+  //   setSidebarOpen(false);
+  //   setShowInvest(true);
+  //   setShowDeposit(false);
+  //   setShowWithdraw(false);
+  // }
 
   function resetToTrading() {
     setShowDeposit(false);
@@ -1097,7 +1096,7 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mt-3">
+            {/* <div className="grid grid-cols-2 gap-4 mt-3">
               <div>
                 <p className="text-xs opacity-80">Total Invested</p>
                 <p className="font-semibold text-sm">
@@ -1110,7 +1109,7 @@ export default function Dashboard() {
                   +${totalEarnings.toFixed(2)}
                 </p>
               </div>
-            </div>
+            </div> */}
 
             <div className="mt-3 pt-3 border-t border-white/20">
               <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1182,7 +1181,7 @@ export default function Dashboard() {
             <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-amber-500 transition-colors" />
           </button>
 
-          <button
+          {/* <button
             onClick={handleInvestClick}
             className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-blue-50 active:bg-blue-100 transition-all duration-200 group"
           >
@@ -1193,7 +1192,7 @@ export default function Dashboard() {
               <span className="font-medium text-gray-700">Invest</span>
             </div>
             <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
-          </button>
+          </button> */}
 
           <div className="pt-6 mt-6 border-t border-gray-100">
             <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-3">
