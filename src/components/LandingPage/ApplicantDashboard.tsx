@@ -599,12 +599,11 @@ export default function Dashboard() {
     try {
       const payload = {
         currency_pair: selectedPair,
-        trade:
-          tradeType.charAt(0).toUpperCase() + tradeType.slice(1).toLowerCase(),
+        trade: tradeType.charAt(0).toUpperCase() + tradeType.slice(1).toLowerCase(),
         amount: amount,
       };
 
-      await tradeApi.post("trade/open-trade/", payload);
+      await tradeApi.post("/open-trade/", payload);
 
       const entryPrice = (20000 + Math.random() * 500).toFixed(2);
 
